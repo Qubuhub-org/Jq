@@ -27,24 +27,22 @@ const char* jvp_utf8_backtrack(const char* start, const char* min, int *missing_
   return start;
 }
 
-const char* jvp_utf8_next(const char* in, const char* end, int* codepoint_ret) {
-  assert(in <= end);
-  if (in == end) {
-    return 0;
-  }
+// The rest of jvp_utf8_next(), for a first byte that is not ASCII.
+const char* jvp_utf8_next_multibyte(const char* in, const char* end, int* codepoint_ret) {
+  assert(in < end);
   int codepoint = -1;
   unsigned char first = (unsigned char)in[0];
+  assert(first & 0x80);
   int length = utf8_coding_length[first];
-  if ((first & 0x80) == 0) {
-    /* Fast-path for ASCII */
-    codepoint = first;
-    length = 1;
-  } else if (length == 0 || length == UTF8_CONTINUATION_BYTE) {
+  if (length == 0 || length == UTF8_CONTINUATION_BYTE) {
     /* Bad single byte - either an invalid byte or an out-of-place continuation byte */
     length = 1;
   } else if (length > end - in) {
-    /* String ends before UTF8 sequence ends */
-    length = end - in;
+    /* String ends before UTF8 sequence ends, so skip only its continuation bytes */
+    for (length = 1; in + length < end; length++) {
+      if (utf8_coding_length[(unsigned char)in[length]] != UTF8_CONTINUATION_BYTE)
+        break;
+    }
   } else {
     codepoint = ((unsigned)in[0]) & utf8_coding_bits[first];
     for (int i=1; i<length; i++) {
